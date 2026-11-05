@@ -1,3 +1,31 @@
 spring:
   application:
     name: paycore
+  datasource:
+    url: jdbc:postgresql://localhost:5432/paycore
+    username: paycore
+    password: paycore
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: always
+  health:
+    redis:
+      enabled: false
