@@ -33,3 +33,6 @@ build/
 .vscode/
 
 Notes.md
+
+# Server secrets
+deploy/.env

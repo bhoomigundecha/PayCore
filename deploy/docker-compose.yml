@@ -1,0 +1,110 @@
+# Production stack for a single Linux VM (tested target: Oracle Cloud Ampere A1, ARM64).
+# Start it with ./deploy.sh, which formats TigerBeetle on the first run.
+name: paycore
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paycore
+      POSTGRES_USER: paycore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paycore -d paycore"]
+      interval: 5s
+      retries: 30
+    networks: [paycore]
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    # Only rate-limit counters live here; nothing needs to survive a restart.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks: [paycore]
+
+  kafka:
+    image: apache/kafka:3.9.0
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms512m"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks: [paycore]
+
+  tigerbeetle:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.17.9
+    restart: unless-stopped
+    command: ["start", "--addresses=0.0.0.0:3000", "--cache-grid=512MiB", "/data/0_0.tigerbeetle"]
+    # Docker 25+ blocks io_uring by default; TigerBeetle needs it.
+    security_opt:
+      - seccomp=unconfined
+    volumes:
+      - tigerbeetle-data:/data
+    networks:
+      paycore:
+        # TigerBeetle clients accept IP addresses only (no DNS), so it gets a fixed IP.
+        ipv4_address: 172.28.0.10
+
+  app:
+    build: ..
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
+      tigerbeetle:
+        condition: service_started
+    environment:
+      PAYCORE_DB_URL: jdbc:postgresql://postgres:5432/paycore
+      PAYCORE_DB_USER: paycore
+      PAYCORE_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      PAYCORE_REDIS_HOST: redis
+      PAYCORE_KAFKA_BOOTSTRAP: kafka:9092
+      PAYCORE_TIGERBEETLE_ADDRESS: 172.28.0.10:3000
+      PAYCORE_RATE_LIMIT_PER_MINUTE: ${PAYCORE_RATE_LIMIT_PER_MINUTE:-120}
+    networks: [paycore]
+
+  caddy:
+    image: caddy:2.9.1
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PAYCORE_DOMAIN: ${PAYCORE_DOMAIN:?set PAYCORE_DOMAIN in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [app]
+    networks: [paycore]
+
+networks:
+  paycore:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  postgres-data:
+  kafka-data:
+  tigerbeetle-data:
+  caddy-data:
+  caddy-config:

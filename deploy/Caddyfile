@@ -1,0 +1,5 @@
+# Caddy gets and renews a Let's Encrypt certificate for this domain automatically.
+{$PAYCORE_DOMAIN} {
+	encode gzip
+	reverse_proxy app:8080
+}

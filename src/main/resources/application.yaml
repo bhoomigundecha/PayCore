@@ -31,7 +31,8 @@ management:
         include: health
   endpoint:
     health:
-      show-details: always
+      show-components: always
+      show-details: never
 
 paycore:
   tigerbeetle:
@@ -43,3 +44,9 @@ paycore:
   recovery:
     interval: 10s
     stuck-after: 30s
+  rate-limit:
+    requests-per-minute: ${PAYCORE_RATE_LIMIT_PER_MINUTE:120}
+
+server:
+  # Trust X-Forwarded-* from the reverse proxy (Caddy) so rate limits see the real client IP.
+  forward-headers-strategy: native
