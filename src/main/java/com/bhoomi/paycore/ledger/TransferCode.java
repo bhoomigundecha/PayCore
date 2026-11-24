@@ -18,4 +18,13 @@ public enum TransferCode {
     public int getCode() {
         return code;
     }
+
+    public static TransferCode fromCode(int code) {
+        for (TransferCode value : values()) {
+            if (value.code == code) {
+                return value;
+            }
+        }
+        throw new IllegalArgumentException("Unknown transfer code " + code);
+    }
 }

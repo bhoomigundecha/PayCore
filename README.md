@@ -2,9 +2,9 @@
 
 **A payment-processing backend that never loses or double-charges money, even when it crashes mid-payment.**
 
-Java 21 · Spring Boot 4 · TigerBeetle · PostgreSQL · Redis · Kafka · Docker
+Java 21 · Spring Boot 4 · TigerBeetle · PostgreSQL · Redis · Kafka · React · Docker
 
-> **Live demo:** `https://<your-domain>/` → interactive API docs (Swagger UI)
+> **Live demo:** `https://<your-domain>/` · API docs at `/swagger-ui/index.html`
 
 ---
 
@@ -20,6 +20,17 @@ POST /payments                     pay; capture now or later        (Idempotency
 POST /payments/{id}/capture | cancel | refund
 GET  /payments/{id}, /accounts/{id}
 ```
+
+## Try it in the browser
+
+| Page | What you can do |
+|---|---|
+| **Playground** | One-click sandbox (wallet with ₹5,000 + merchant), then pay, hold, capture, release and refund, with live ledger balances |
+| **Break-it Lab** | Fire real concurrent attacks at the API: a retry storm (5 identical requests → 1 charge), a race to overspend (20 payments vs a wallet that affords 5), hold-and-release, and idempotency-key misuse |
+| **Ledger Explorer** | Every TigerBeetle transfer for any account as a T-account, plus a live check that total debits = total credits across the whole ledger |
+| **How it works** | Pick where the server crashes during a payment and see what each database holds and how PayCore recovers |
+
+The UI is React (JSX) + Tailwind + Motion, built into the Spring Boot jar so the site and API share one origin.
 
 ## Architecture
 
@@ -63,7 +74,8 @@ Needs Java 21, PostgreSQL 16 (db/user/password `paycore`), Redis, and a single-r
 ```bash
 ./tigerbeetle format --cluster=0 --replica=0 --replica-count=1 --development ./0_0.tigerbeetle
 ./tigerbeetle start --addresses=3000 --development ./0_0.tigerbeetle
-./mvnw spring-boot:run          # then open http://localhost:8080
+./mvnw spring-boot:run          # API on http://localhost:8080
+cd web && npm install && npm run dev   # UI on http://localhost:5173 (proxies API calls to :8080)
 ```
 
 Tests run against real local services (a `paycore_test` database and the local TigerBeetle):

@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/* Design tokens. Dark-first fintech: near-black canvas, glass surfaces, colour only where it means something. */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, monospace;
+
+  --color-canvas: #06070a;
+  --color-surface: #0c0e13;
+  --color-raised: #12151c;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-strong: rgb(255 255 255 / 0.14);
+  --color-ink: #f4f5f7;
+  --color-muted: #9aa1ad;
+  --color-faint: #5d6472;
+
+  --color-brand: #34d399;      /* money in / success */
+  --color-brand-strong: #10b981;
+  --color-hold: #fbbf24;       /* money on hold */
+  --color-decline: #fb7185;    /* declined / error */
+  --color-info: #7dd3fc;
+  --color-violet: #a78bfa;
+
+  --animate-marquee: marquee var(--marquee-duration, 40s) linear infinite;
+  --animate-spin-slow: spin 4s linear infinite;
+  --animate-pulse-dot: pulse-dot 2s ease-in-out infinite;
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.8); }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--color-canvas);
+  }
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection {
+    background: rgb(52 211 153 / 0.3);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility glass {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.045), rgb(255 255 255 / 0.015));
+  border: 1px solid var(--color-line);
+  backdrop-filter: blur(12px);
+}
+
+/* Faint grid that fades out towards the edges. */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, black 30%, transparent 75%);
+}
+
+@utility text-gradient {
+  background: linear-gradient(90deg, #6ee7b7, #7dd3fc 45%, #a78bfa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

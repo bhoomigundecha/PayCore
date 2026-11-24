@@ -5,3 +5,5 @@ target
 deploy
 Notes.md
 *.md
+web/node_modules
+web/dist

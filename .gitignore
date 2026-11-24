@@ -36,3 +36,7 @@ Notes.md
 
 # Server secrets
 deploy/.env
+
+# Frontend
+web/node_modules/
+web/dist/

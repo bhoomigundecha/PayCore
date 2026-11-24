@@ -1,6 +1,7 @@
 package com.bhoomi.paycore.ledger;
 
 import com.tigerbeetle.AccountBatch;
+import com.tigerbeetle.AccountFilter;
 import com.tigerbeetle.AccountFlags;
 import com.tigerbeetle.Client;
 import com.tigerbeetle.CreateAccountResultBatch;
@@ -8,9 +9,13 @@ import com.tigerbeetle.CreateAccountStatus;
 import com.tigerbeetle.CreateTransferResultBatch;
 import com.tigerbeetle.CreateTransferStatus;
 import com.tigerbeetle.IdBatch;
+import com.tigerbeetle.QueryFilter;
 import com.tigerbeetle.TransferBatch;
 import com.tigerbeetle.TransferFlags;
 import com.tigerbeetle.UInt128;
+import java.math.BigInteger;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -116,6 +121,85 @@ public class LedgerService {
 
         return new AccountBalance(accountId, available,
                 creditsPosted, debitsPosted, creditsPending, debitsPending);
+    }
+
+    /** Most recent transfers touching an account, newest first. */
+    public List<LedgerEntry> getTransfers(UUID accountId, int limit) {
+        AccountFilter filter = new AccountFilter();
+        filter.setAccountId(UInt128.asBytes(accountId));
+        filter.setDebits(true);
+        filter.setCredits(true);
+        filter.setReversed(true);
+        filter.setLimit(limit);
+
+        TransferBatch transfers = await(client.getAccountTransfersAsync(filter));
+        List<LedgerEntry> entries = new ArrayList<>(transfers.getLength());
+        while (transfers.next()) {
+            int flags = transfers.getFlags();
+            LedgerTransfer.Kind kind = TransferFlags.hasPending(flags) ? LedgerTransfer.Kind.PENDING
+                    : TransferFlags.hasPostPendingTransfer(flags) ? LedgerTransfer.Kind.POST_PENDING
+                    : TransferFlags.hasVoidPendingTransfer(flags) ? LedgerTransfer.Kind.VOID_PENDING
+                    : LedgerTransfer.Kind.POSTED;
+            byte[] pendingId = transfers.getPendingId();
+            entries.add(new LedgerEntry(
+                    UInt128.asUUID(transfers.getId()),
+                    kind,
+                    TransferCode.fromCode(transfers.getCode()),
+                    UInt128.asUUID(transfers.getDebitAccountId()),
+                    UInt128.asUUID(transfers.getCreditAccountId()),
+                    transfers.getAmount().longValueExact(),
+                    isZero(pendingId) ? null : UInt128.asUUID(pendingId),
+                    nanosToInstant(transfers.getTimestamp())));
+        }
+        return entries;
+    }
+
+    /** Sums balances over every account on the currency's ledger, paging through all of them. */
+    public LedgerTotals totals(Currency currency) {
+        final int pageSize = 1000;
+        long accounts = 0;
+        BigInteger debitsPosted = BigInteger.ZERO;
+        BigInteger creditsPosted = BigInteger.ZERO;
+        BigInteger debitsPending = BigInteger.ZERO;
+        BigInteger creditsPending = BigInteger.ZERO;
+
+        long timestampMin = 0;
+        while (true) {
+            QueryFilter filter = new QueryFilter();
+            filter.setLedger(currency.getLedgerId());
+            filter.setTimestampMin(timestampMin);
+            filter.setLimit(pageSize);
+
+            AccountBatch page = await(client.queryAccountsAsync(filter));
+            long lastTimestamp = timestampMin;
+            while (page.next()) {
+                accounts++;
+                debitsPosted = debitsPosted.add(page.getDebitsPosted());
+                creditsPosted = creditsPosted.add(page.getCreditsPosted());
+                debitsPending = debitsPending.add(page.getDebitsPending());
+                creditsPending = creditsPending.add(page.getCreditsPending());
+                lastTimestamp = page.getTimestamp();
+            }
+            if (page.getLength() < pageSize) {
+                break;
+            }
+            timestampMin = lastTimestamp + 1;
+        }
+        return new LedgerTotals(currency, accounts, debitsPosted.longValueExact(), creditsPosted.longValueExact(),
+                debitsPending.longValueExact(), creditsPending.longValueExact());
+    }
+
+    private static boolean isZero(byte[] id) {
+        for (byte b : id) {
+            if (b != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Instant nanosToInstant(long nanos) {
+        return Instant.ofEpochSecond(0, nanos);
     }
 
     private static void addToBatch(TransferBatch batch, LedgerTransfer t, Currency currency, boolean linkedToNext) {
