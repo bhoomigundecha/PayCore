@@ -21,4 +21,8 @@ public enum AccountType {
     public boolean cannotGoNegative() {
         return cannotGoNegative;
     }
+
+    public boolean isSystemAccount() {
+        return this == EXTERNAL_FUNDING || this == PLATFORM_FEE;
+    }
 }

@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/paycore_test
+
+paycore:
+  recovery:
+    # Tests call RecoveryJob.run() themselves; keep the scheduler out of the way.
+    interval: 1h
+    stuck-after: 0s
