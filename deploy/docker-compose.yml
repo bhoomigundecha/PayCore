@@ -86,6 +86,8 @@ services:
       PAYCORE_CARD_FINGERPRINT_KEY: ${PAYCORE_CARD_FINGERPRINT_KEY:?set PAYCORE_CARD_FINGERPRINT_KEY in deploy/.env}
       PAYCORE_CARD_CVC_KEY: ${PAYCORE_CARD_CVC_KEY:?set PAYCORE_CARD_CVC_KEY in deploy/.env}
       PAYCORE_STEP_UP_CODE_KEY: ${PAYCORE_STEP_UP_CODE_KEY:?set PAYCORE_STEP_UP_CODE_KEY in deploy/.env}
+      PAYCORE_WEBHOOKS_ALLOW_PRIVATE: "false" # merchants' webhook URLs may not reach internal addresses (SSRF)
+      PAYCORE_SELF_BASE_URL: http://localhost:8080
       TZ: Asia/Kolkata
     networks: [paycore]
 

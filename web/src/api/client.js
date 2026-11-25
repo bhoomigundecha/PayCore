@@ -100,6 +100,15 @@ export const api = {
     request('POST', `/checkout-sessions/${id}/pay`, { body: card, idempotencyKey }),
   authenticateCheckout: (id, paymentId, code) =>
     request('POST', `/checkout-sessions/${id}/authenticate`, { body: { paymentId, code } }),
+  listWebhooks: () => request('GET', '/webhooks/endpoints'),
+  createWebhook: (accountId, { url, testReceiver }) =>
+    request('POST', '/webhooks/endpoints', { body: { accountId, url, testReceiver } }),
+  deleteWebhook: (id) => request('DELETE', `/webhooks/endpoints/${id}`),
+  webhookDeliveries: (id) => request('GET', `/webhooks/endpoints/${id}/deliveries`),
+  webhookReceived: (id) => request('GET', `/webhooks/endpoints/${id}/received`),
+  sendTestWebhook: (id) => request('POST', `/webhooks/endpoints/${id}/test`),
+  setReceiverFailing: (id, failing) => request('PUT', `/webhooks/endpoints/${id}/receiver`, { body: { failing } }),
+  retryDelivery: (id) => request('POST', `/webhooks/deliveries/${id}/retry`),
   capturePayment: (id) => request('POST', `/payments/${id}/capture`),
   cancelPayment: (id) => request('POST', `/payments/${id}/cancel`),
   refundPayment: (id) => request('POST', `/payments/${id}/refund`),

@@ -17,6 +17,17 @@ spring:
       port: 6379
   kafka:
     bootstrap-servers: ${PAYCORE_KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      acks: all # an event counts as published only once every in-sync replica has it
+      properties:
+        enable.idempotence: true
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+        linger.ms: 5
+    consumer:
+      auto-offset-reset: earliest
+      enable-auto-commit: false # Spring commits the offset after the listener has finished
   mvc:
     problemdetails:
       enabled: true
@@ -30,11 +41,22 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,prometheus # Caddy hides /actuator/prometheus from the internet
   endpoint:
     health:
       show-components: always
       show-details: never
+  metrics:
+    tags:
+      application: paycore
+    distribution:
+      # Histogram buckets so Prometheus can compute P50/P95/P99 across instances (histogram_quantile).
+      percentiles-histogram:
+        http.server.requests: true
+        paycore.ledger.requests: true
+        paycore.outbox.publish.lag: true
+      slo:
+        http.server.requests: 25ms,50ms,100ms,250ms,500ms,1s
 
 paycore:
   tigerbeetle:
@@ -54,6 +76,19 @@ paycore:
     threshold: ${PAYCORE_STEP_UP_THRESHOLD:200000}
     # 32-byte key for binding codes to payments (dev default; set PAYCORE_STEP_UP_CODE_KEY in production).
     code-key: ${PAYCORE_STEP_UP_CODE_KEY:rNs6teVD2xxSrZNhtmrCOTgp4FeHTtrLIyKbX+2ys5w=}
+  events:
+    topic: paycore.payments
+    consumer-group: paycore-webhooks
+    relay-interval: 500ms
+  webhooks:
+    interval: 1s
+    max-attempts: 8
+    base-backoff: 10s
+    max-backoff: 1h
+    # Where the dispatcher reaches this app's own built-in test receiver.
+    self-base-url: ${PAYCORE_SELF_BASE_URL:http://localhost:8080}
+    # Local development lets webhooks call http://localhost. Production must keep this false (SSRF).
+    allow-private: ${PAYCORE_WEBHOOKS_ALLOW_PRIVATE:true}
   cards:
     # 32-byte keys, base64. These defaults are for local development ONLY; production sets real ones
     # through the environment (see deploy/.env.example). Generate with: openssl rand -base64 32
@@ -64,3 +99,7 @@ paycore:
 server:
   # Trust X-Forwarded-* from the reverse proxy (Caddy) so rate limits see the real client IP.
   forward-headers-strategy: native
+
+logging:
+  level:
+    org.apache.kafka: warn # the Kafka client logs every rebalance at INFO

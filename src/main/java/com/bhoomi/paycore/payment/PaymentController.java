@@ -64,7 +64,16 @@ public class PaymentController {
     /** Your payments, as payer or as merchant, newest first. */
     @GetMapping
     public List<PaymentResponse> list(@AuthenticationPrincipal CurrentUser me) {
-        return paymentService.listFor(me.id()).stream().map(this::view).toList();
+        List<Payment> payments = paymentService.listFor(me.id());
+        // One query for every account name on the page, instead of two lookups per payment (N+1).
+        var ids = new java.util.HashSet<UUID>();
+        payments.forEach(p -> {
+            ids.add(p.getCustomerAccountId());
+            ids.add(p.getMerchantAccountId());
+        });
+        var names = accountService.namesOf(ids);
+        return payments.stream().map(p -> PaymentResponse.of(p, names.get(p.getCustomerAccountId()),
+                names.get(p.getMerchantAccountId()))).toList();
     }
 
     @GetMapping("/{id}")

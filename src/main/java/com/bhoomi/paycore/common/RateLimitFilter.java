@@ -92,7 +92,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return "auth";
         }
         if (path.startsWith("/accounts") || path.startsWith("/payments") || path.startsWith("/ledger")
-                || path.startsWith("/cards") || path.startsWith("/activity") || path.startsWith("/notifications") || path.startsWith("/checkout-sessions")) {
+                || path.startsWith("/cards") || path.startsWith("/activity") || path.startsWith("/notifications") || path.startsWith("/checkout-sessions")
+                || path.startsWith("/webhooks/endpoints") || path.startsWith("/webhooks/deliveries")) {
             return "api";
         }
         return null;

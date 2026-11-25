@@ -13,3 +13,15 @@ paycore:
   rate-limit:
     requests-per-minute: 100000
     auth-per-minute: 100000
+  events:
+    # Its own topic and consumer group, so tests never see the dev app's events (or the other way round).
+    topic: paycore.test.payments
+    consumer-group: paycore-test-webhooks
+    relay-interval: 200ms
+  webhooks:
+    interval: 200ms
+    base-backoff: 300ms
+    max-attempts: 3
+    allow-private: true
+    # WebhookIntegrationTest runs a real server on this port; the built-in test receiver lives there.
+    self-base-url: http://localhost:18089

@@ -16,6 +16,8 @@ import com.tigerbeetle.UInt128;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -35,7 +37,10 @@ public class LedgerService {
 
     private final Client client;
 
-    public LedgerService(Client client) {
+    private final MeterRegistry meters;
+
+    public LedgerService(Client client, MeterRegistry meters) {
+        this.meters = meters;
         this.client = client;
     }
 
@@ -58,7 +63,7 @@ public class LedgerService {
                 ? AccountFlags.DEBITS_MUST_NOT_EXCEED_CREDITS
                 : AccountFlags.NONE);
 
-        CreateAccountResultBatch results = await(client.createAccountsAsync(batch));
+        CreateAccountResultBatch results = await("create_accounts", () -> client.createAccountsAsync(batch));
         results.next();
         CreateAccountStatus status = results.getStatus();
         if (status != CreateAccountStatus.Created && status != CreateAccountStatus.Exists) {
@@ -86,7 +91,7 @@ public class LedgerService {
             addToBatch(batch, transfers.get(i), currency, linkedToNext);
         }
 
-        CreateTransferResultBatch results = await(client.createTransfersAsync(batch));
+        CreateTransferResultBatch results = await("create_transfers", () -> client.createTransfersAsync(batch));
         int index = 0;
         while (results.next()) {
             CreateTransferStatus status = results.getStatus();
@@ -108,7 +113,7 @@ public class LedgerService {
         IdBatch ids = new IdBatch(1);
         ids.add(UInt128.asBytes(accountId));
 
-        AccountBatch accounts = await(client.lookupAccountsAsync(ids));
+        AccountBatch accounts = await("lookup_accounts", () -> client.lookupAccountsAsync(ids));
         if (!accounts.next()) {
             throw new AccountNotFoundException(accountId);
         }
@@ -132,7 +137,7 @@ public class LedgerService {
         filter.setReversed(true);
         filter.setLimit(limit);
 
-        TransferBatch transfers = await(client.getAccountTransfersAsync(filter));
+        TransferBatch transfers = await("get_account_transfers", () -> client.getAccountTransfersAsync(filter));
         List<LedgerEntry> entries = new ArrayList<>(transfers.getLength());
         while (transfers.next()) {
             int flags = transfers.getFlags();
@@ -170,7 +175,7 @@ public class LedgerService {
             filter.setTimestampMin(timestampMin);
             filter.setLimit(pageSize);
 
-            AccountBatch page = await(client.queryAccountsAsync(filter));
+            AccountBatch page = await("query_accounts", () -> client.queryAccountsAsync(filter));
             long lastTimestamp = timestampMin;
             while (page.next()) {
                 accounts++;
@@ -235,9 +240,14 @@ public class LedgerService {
         batch.setFlags(flags);
     }
 
-    private <T> T await(CompletableFuture<T> future) {
+    /** Calls the ledger and records how long it took (paycore.ledger.requests, tagged by operation). */
+    private <T> T await(String op, java.util.function.Supplier<CompletableFuture<T>> call) {
+        Timer.Sample sample = Timer.start(meters);
+        String outcome = "error";
         try {
-            return future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            T result = call.get().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            outcome = "ok";
+            return result;
         } catch (TimeoutException e) {
             throw new LedgerException("Ledger did not respond in time; outcome unknown", e);
         } catch (ExecutionException e) {
@@ -245,6 +255,8 @@ public class LedgerService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new LedgerException("Interrupted while waiting for ledger", e);
+        } finally {
+            sample.stop(meters.timer("paycore.ledger.requests", "op", op, "outcome", outcome));
         }
     }
 }

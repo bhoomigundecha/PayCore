@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { X } from 'lucide-react'
 
 /** Minimal modal: closes on Escape or a click on the backdrop. */
-export function Dialog({ open, onClose, title, description, children }) {
+export function Dialog({ open, onClose, title, description, children, wide = false }) {
   useEffect(() => {
     if (!open) return undefined
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -30,7 +30,7 @@ export function Dialog({ open, onClose, title, description, children }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.18 }}
-            className="w-full max-w-md rounded-2xl border border-line-strong bg-surface p-6 shadow-2xl"
+            className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'} max-h-[90vh] overflow-y-auto rounded-2xl border border-line-strong bg-surface p-6 shadow-2xl`}
           >
             <div className="flex items-start justify-between gap-4">
               <div>

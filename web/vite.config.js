@@ -18,6 +18,7 @@ export default defineConfig({
       '/accounts': API,
       '/payments': API,
       '/ledger': API,
+      '/webhooks': API,
       '/actuator': API,
       '/swagger-ui': API,
       '/v3': API,

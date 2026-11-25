@@ -43,3 +43,6 @@ web/dist/
 
 # Personal deploy notes
 deploy/DEPLOY.md
+
+# k6 raw output (curated numbers go in load/RESULTS.md)
+load/results/

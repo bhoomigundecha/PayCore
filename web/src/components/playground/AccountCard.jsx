@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link2, Plus, Store, Wallet } from 'lucide-react'
+import { Link2, Plus, Store, Wallet, Webhook } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '../../api/client'
 import { useSandbox } from '../../hooks/useSandbox'
@@ -9,6 +9,7 @@ import { NumberTicker } from '../ui/NumberTicker'
 import { CopyId, Skeleton } from '../ui/misc'
 import { Tile } from './Tile'
 import { PaymentLinkDialog } from './PaymentLinkDialog'
+import { WebhooksDialog } from './WebhooksDialog'
 
 const STYLE = {
   CUSTOMER_WALLET: { icon: Wallet, label: 'Wallet', accent: 'text-brand' },
@@ -21,6 +22,7 @@ export function AccountCard({ account }) {
   const { refresh } = useSandbox()
   const [busy, setBusy] = useState(null)
   const [linking, setLinking] = useState(false)
+  const [hooks, setHooks] = useState(false)
   const style = STYLE[account.type]
   const isStore = account.type === 'MERCHANT'
   const b = account.balance // comes with the account list; refreshed after every change
@@ -43,6 +45,16 @@ export function AccountCard({ account }) {
   const footer = isStore ? (
     <>
       <span className="text-xs text-muted">Received <span className="text-ink tabular">{formatPaise(b?.creditsPosted ?? 0)}</span></span>
+      <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={() => setHooks(true)}
+        aria-label="Webhooks"
+        title="Webhooks"
+        className="inline-flex items-center gap-1 rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs text-ink transition-colors hover:border-line-strong"
+      >
+        <Webhook className="size-3.5" />
+      </button>
       <button
         type="button"
         onClick={() => setLinking(true)}
@@ -50,6 +62,7 @@ export function AccountCard({ account }) {
       >
         <Link2 className="size-3" /> Payment link
       </button>
+      </div>
     </>
   ) : (
     <>
@@ -73,6 +86,7 @@ export function AccountCard({ account }) {
   return (
     <>
     {isStore && <PaymentLinkDialog store={account} open={linking} onClose={() => setLinking(false)} />}
+    {isStore && <WebhooksDialog store={account} open={hooks} onClose={() => setHooks(false)} />}
     <Tile icon={style.icon} accent={style.accent} label={style.label} meta={<CopyId id={account.id} />} footer={footer}>
       <p className="text-lg font-semibold tracking-tight text-ink">{account.name}</p>
 

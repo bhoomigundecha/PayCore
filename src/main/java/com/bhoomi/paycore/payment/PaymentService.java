@@ -22,6 +22,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
+import com.bhoomi.paycore.events.Outbox;
 
 /**
  * Payment state machine. Every step follows the same three moves that solve the dual-write problem:
@@ -43,14 +45,21 @@ public class PaymentService {
     private final PaymentLedger paymentLedger;
     private final FeePolicy feePolicy;
     private final StepUpService stepUps;
+    private final Outbox outbox;
+    private final TransactionTemplate tx;
+    private final io.micrometer.core.instrument.MeterRegistry meters;
 
     public PaymentService(PaymentRepository payments, AccountService accounts,
-                          PaymentLedger paymentLedger, FeePolicy feePolicy, StepUpService stepUps) {
+                          PaymentLedger paymentLedger, FeePolicy feePolicy, StepUpService stepUps,
+                          Outbox outbox, TransactionTemplate tx, io.micrometer.core.instrument.MeterRegistry meters) {
+        this.meters = meters;
         this.payments = payments;
         this.accounts = accounts;
         this.paymentLedger = paymentLedger;
         this.feePolicy = feePolicy;
         this.stepUps = stepUps;
+        this.outbox = outbox;
+        this.tx = tx;
     }
 
     /**
@@ -111,7 +120,7 @@ public class PaymentService {
             payment.moveTo(PaymentStatus.REQUIRES_AUTHENTICATION); // the ledger is not touched until approved
         }
         try {
-            payment = payments.saveAndFlush(payment);
+            payment = persist(payment, null);
         } catch (DataIntegrityViolationException e) {
             var winner = payments.findByIdempotencyKey(idempotencyKey);
             if (winner.isPresent()) {
@@ -334,7 +343,58 @@ public class PaymentService {
     }
 
     private Payment save(Payment p, PaymentStatus status, String reason) {
+        PaymentStatus before = p.getStatus();
         p.moveTo(status, reason);
-        return payments.saveAndFlush(p);
+        return persist(p, before);
+    }
+
+    /**
+     * Saves the payment and, in the same transaction, the webhook event for its new status (if that
+     * status is one merchants hear about). Either both commit or neither does.
+     */
+    private Payment persist(Payment p, PaymentStatus before) {
+        Payment result = tx.execute(status -> {
+            Payment saved = payments.saveAndFlush(p);
+            String type = eventTypeFor(before, saved.getStatus());
+            if (type != null) {
+                outbox.append(saved.getId(), saved.getMerchantAccountId(), null, type, eventData(saved));
+            }
+            return saved;
+        });
+        // Counted after commit: paycore_payments_total{status="CAPTURED"} etc. Throughput = rate() of this.
+        String type = eventTypeFor(before, result.getStatus());
+        if (type != null) {
+            meters.counter("paycore.payments", "status", result.getStatus().name(),
+                    "reason", result.getFailureReason() == null ? "none" : result.getFailureReason()).increment();
+        }
+        return result;
+    }
+
+    /** The public event for a transition. The in-flight "-ING" states are internal and not announced. */
+    static String eventTypeFor(PaymentStatus before, PaymentStatus after) {
+        return switch (after) {
+            case REQUIRES_AUTHENTICATION -> "payment.requires_action";
+            case AUTHORIZED -> "payment.authorized";
+            case CAPTURED -> before == PaymentStatus.REFUNDING ? "payment.refund_failed" : "payment.succeeded";
+            case CANCELED -> "payment.canceled";
+            case REFUNDED -> "payment.refunded";
+            case FAILED -> "payment.failed";
+            default -> null;
+        };
+    }
+
+    private static java.util.Map<String, Object> eventData(Payment p) {
+        var data = new java.util.LinkedHashMap<String, Object>();
+        data.put("id", p.getId().toString());
+        data.put("object", "payment");
+        data.put("status", p.getStatus().name());
+        data.put("amount", p.getAmount());
+        data.put("fee", p.getFee());
+        data.put("currency", p.getCurrency().name());
+        data.put("customerAccountId", p.getCustomerAccountId().toString());
+        data.put("merchantAccountId", p.getMerchantAccountId().toString());
+        data.put("checkoutSessionId", p.getCheckoutSessionId() == null ? null : p.getCheckoutSessionId().toString());
+        data.put("failureReason", p.getFailureReason());
+        return data;
     }
 }

@@ -31,7 +31,9 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityContextRepository contextRepository) throws Exception {
         http
-                .csrf(csrf -> csrf.spa()) // XSRF-TOKEN cookie, echoed back by the React app as X-XSRF-TOKEN
+                .csrf(csrf -> csrf.spa() // XSRF-TOKEN cookie, echoed back by the React app as X-XSRF-TOKEN
+                        // Server-to-server webhook calls carry no cookies; they are authenticated by signature.
+                        .ignoringRequestMatchers("/webhooks/receiver/**"))
                 .securityContext(context -> context.securityContextRepository(contextRepository))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
@@ -39,6 +41,8 @@ public class SecurityConfig {
                         // Paying a link is public: the card is the credential (rate-limited, CSRF-protected).
                         .requestMatchers(HttpMethod.POST, "/checkout-sessions/*/pay", "/checkout-sessions/*/authenticate").permitAll()
                         .requestMatchers("/checkout-sessions", "/checkout-sessions/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/webhooks/receiver/*").permitAll()
+                        .requestMatchers("/webhooks/**").authenticated()
                         .requestMatchers("/accounts/**", "/payments/**", "/cards/**", "/ledger/**", "/notifications/**").authenticated()
                         .anyRequest().permitAll())
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))

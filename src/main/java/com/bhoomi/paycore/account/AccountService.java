@@ -57,6 +57,13 @@ public class AccountService {
         return account;
     }
 
+    /** Names of many accounts in ONE query (avoids an N+1 lookup when rendering lists). */
+    public java.util.Map<UUID, String> namesOf(java.util.Collection<UUID> ids) {
+        var names = new java.util.HashMap<UUID, String>();
+        accounts.findAllById(new java.util.HashSet<>(ids)).forEach(a -> names.put(a.getId(), a.getName()));
+        return names;
+    }
+
     public List<Account> listOwned(UUID userId) {
         return accounts.findByOwnerUserIdOrderByCreatedAtAsc(userId);
     }

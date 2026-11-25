@@ -1,5 +1,8 @@
 # Caddy gets and renews a Let's Encrypt certificate for this domain automatically.
 {$PAYCORE_DOMAIN} {
 	encode gzip
+	# Metrics are for Prometheus on the internal network only, never the public internet.
+	@metrics path /actuator/prometheus /actuator/prometheus/*
+	respond @metrics 404
 	reverse_proxy app:8080
 }
