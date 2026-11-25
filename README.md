@@ -94,7 +94,13 @@ Tests run against real local services (a `paycore_test` database and the local T
 
 ## Deploy
 
-One VM, one command: see [deploy/DEPLOY.md](deploy/DEPLOY.md) (Docker Compose with Caddy for automatic HTTPS; runs on Oracle Cloud's free ARM VM).
+One Linux VM (tested on Oracle Cloud's free ARM instance), Docker Compose, and Caddy for automatic HTTPS:
+
+```bash
+git clone https://github.com/bhoomigundecha/PayCore.git && cd PayCore
+./deploy/setup-server.sh            # installs Docker, opens ports 80/443
+./deploy/make-env.sh && ./deploy/deploy.sh   # generates secrets, builds and starts everything
+```
 
 ## Roadmap
 

@@ -40,3 +40,6 @@ deploy/.env
 # Frontend
 web/node_modules/
 web/dist/
+
+# Personal deploy notes
+deploy/DEPLOY.md
