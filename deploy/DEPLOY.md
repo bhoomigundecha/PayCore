@@ -39,6 +39,8 @@ nano .env
 
 - `PAYCORE_DOMAIN`: your IP with dashes, e.g. `140-238-12-34.sslip.io` (sslip.io is free DNS that resolves to the IP inside the name)
 - `POSTGRES_PASSWORD`: output of `openssl rand -hex 24`
+- `PAYCORE_CARD_ENCRYPTION_KEY`, `PAYCORE_CARD_FINGERPRINT_KEY`, `PAYCORE_CARD_CVC_KEY`: three different
+  outputs of `openssl rand -base64 32`. Never change them once cards exist.
 
 ```bash
 ./deploy.sh

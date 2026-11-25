@@ -20,6 +20,8 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  session:
+    timeout: 7d
   threads:
     virtual:
       enabled: true
@@ -46,6 +48,18 @@ paycore:
     stuck-after: 30s
   rate-limit:
     requests-per-minute: ${PAYCORE_RATE_LIMIT_PER_MINUTE:120}
+    auth-per-minute: ${PAYCORE_AUTH_RATE_LIMIT_PER_MINUTE:10}
+  step-up:
+    # Payments at or above this amount (paise) need the payer's one-time code. 200000 = ₹2,000.
+    threshold: ${PAYCORE_STEP_UP_THRESHOLD:200000}
+    # 32-byte key for binding codes to payments (dev default; set PAYCORE_STEP_UP_CODE_KEY in production).
+    code-key: ${PAYCORE_STEP_UP_CODE_KEY:rNs6teVD2xxSrZNhtmrCOTgp4FeHTtrLIyKbX+2ys5w=}
+  cards:
+    # 32-byte keys, base64. These defaults are for local development ONLY; production sets real ones
+    # through the environment (see deploy/.env.example). Generate with: openssl rand -base64 32
+    encryption-key: ${PAYCORE_CARD_ENCRYPTION_KEY:DP6Woz6lFPYFjP4VwYOfpmNgkG/kWnDtosJqHh2x8/U=}
+    fingerprint-key: ${PAYCORE_CARD_FINGERPRINT_KEY:6Ko885EgGghMS3OMgQN56NFqb2zHFBfQjRFPdjY9EZM=}
+    cvc-key: ${PAYCORE_CARD_CVC_KEY:VltOlWK2Tq7T7z+1uA/1RHunFj25h6kBm+3/mm8s66Y=}
 
 server:
   # Trust X-Forwarded-* from the reverse proxy (Caddy) so rate limits see the real client IP.

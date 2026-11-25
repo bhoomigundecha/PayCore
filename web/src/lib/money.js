@@ -21,4 +21,7 @@ export const rupeesToPaise = (rupees) => {
 export const FEE_BPS = 200
 export const feeFor = (paise) => Math.floor((paise * FEE_BPS) / 10_000)
 
+/** Mirrors paycore.step-up.threshold: payments of ₹2,000 or more need a one-time code. */
+export const STEP_UP_THRESHOLD = 200_000
+
 export const shortId = (id) => (id ? `${id.slice(0, 8)}…${id.slice(-4)}` : '')

@@ -12,6 +12,18 @@ export function GitHubIcon({ className }) {
   )
 }
 
+/** The PayCore mark on its own (a card with a stripe), used where the wordmark would be too wide. */
+export function LogoMark({ className }) {
+  return (
+    <svg viewBox="0 0 32 32" className={cn('size-6', className)} aria-hidden>
+      <rect width="32" height="32" rx="9" fill="rgb(52 211 153 / 0.14)" />
+      <rect x="7" y="9" width="18" height="14" rx="3" fill="none" stroke="#34d399" strokeWidth="2.2" />
+      <path d="M7 14h18" stroke="#34d399" strokeWidth="2.2" />
+      <circle cx="21" cy="19" r="1.6" fill="#7dd3fc" />
+    </svg>
+  )
+}
+
 export function Logo({ className, compact = false }) {
   return (
     <span className={cn('inline-flex items-center gap-2 font-semibold tracking-tight', className)}>

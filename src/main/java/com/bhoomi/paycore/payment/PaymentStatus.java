@@ -10,6 +10,9 @@ import java.util.Set;
  * are deterministic.
  *
  * <pre>
+ * REQUIRES_AUTHENTICATION (large payments only, until the payer enters their code)
+ *      |
+ *      v
  * AUTHORIZING -> AUTHORIZED -> CAPTURING -> CAPTURED -> REFUNDING -> REFUNDED
  *      |              |
  *      v              v
@@ -17,6 +20,8 @@ import java.util.Set;
  * </pre>
  */
 public enum PaymentStatus {
+    /** Above the step-up threshold: waiting for the payer's one-time code. Nothing has touched the ledger yet. */
+    REQUIRES_AUTHENTICATION,
     AUTHORIZING,
     AUTHORIZED,
     CAPTURING,

@@ -2,14 +2,18 @@ package com.bhoomi.paycore.ledger;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.bhoomi.paycore.support.TestSessions;
+import com.jayway.jsonpath.JsonPath;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -21,19 +25,9 @@ class LedgerApiIntegrationTest {
     @Autowired
     MockMvc mvc;
 
-    @Autowired
-    LedgerService ledger;
-
-    @Autowired
-    PaymentLedger paymentLedger;
-
     @Test
-    void totalDebitsAlwaysEqualTotalCredits() throws Exception {
-        UUID customer = ledger.createAccount(AccountType.CUSTOMER_WALLET, Currency.INR);
-        UUID merchant = ledger.createAccount(AccountType.MERCHANT, Currency.INR);
-        ledger.submit(Currency.INR, LedgerTransfer.posted(LedgerService.newId(),
-                SystemAccounts.EXTERNAL_FUNDING_INR, customer, 5_000, TransferCode.TOP_UP));
-        paymentLedger.authorize(UUID.randomUUID(), customer, merchant, 1_000, 20, Currency.INR);
+    void totalDebitsAlwaysEqualTotalCreditsAndIsPublic() throws Exception {
+        TestSessions.guest(mvc); // makes sure there is fresh activity on the ledger
 
         mvc.perform(get("/ledger/totals"))
                 .andExpect(status().isOk())
@@ -42,16 +36,18 @@ class LedgerApiIntegrationTest {
 
     @Test
     void transferHistoryShowsBothLegsOfAPayment() throws Exception {
-        UUID customer = ledger.createAccount(AccountType.CUSTOMER_WALLET, Currency.INR);
-        UUID merchant = ledger.createAccount(AccountType.MERCHANT, Currency.INR);
-        ledger.submit(Currency.INR, LedgerTransfer.posted(LedgerService.newId(),
-                SystemAccounts.EXTERNAL_FUNDING_INR, customer, 5_000, TransferCode.TOP_UP));
-        UUID payment = UUID.randomUUID();
-        paymentLedger.authorize(payment, customer, merchant, 1_000, 20, Currency.INR);
-        paymentLedger.capture(payment, 20, Currency.INR);
+        var user = TestSessions.guest(mvc);
+        String customer = createAccount(user, "CUSTOMER_WALLET");
+        String merchant = createAccount(user, "MERCHANT");
+        mvc.perform(user.as(post("/accounts/{id}/top-ups", customer)).header("Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"amount\":5000}")).andExpect(status().isOk());
+        mvc.perform(user.as(post("/payments")).header("Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"customerAccountId\":\"" + customer + "\",\"merchantAccountId\":\"" + merchant + "\",\"amount\":1000}"))
+                .andExpect(status().isCreated());
 
-        // top-up + 2 holds + 2 captures
-        mvc.perform(get("/ledger/accounts/{id}/transfers", customer))
+        // top-up + 2 holds (merchant share, fee) + 2 captures
+        mvc.perform(user.as(get("/ledger/accounts/{id}/transfers", customer)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(5)))
                 .andExpect(jsonPath("$[0].kind").value("POST_PENDING"))
@@ -59,8 +55,32 @@ class LedgerApiIntegrationTest {
     }
 
     @Test
-    void unknownAccountHistoryIs404() throws Exception {
-        mvc.perform(get("/ledger/accounts/{id}/transfers", UUID.randomUUID()))
-                .andExpect(status().isNotFound());
+    void someoneElsesAccountHistoryIs404() throws Exception {
+        var owner = TestSessions.guest(mvc);
+        var stranger = TestSessions.guest(mvc);
+        String account = createAccount(owner, "CUSTOMER_WALLET");
+
+        mvc.perform(stranger.as(get("/ledger/accounts/{id}/transfers", account))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void systemAccountHistoryIsVisibleToAnySignedInUser() throws Exception {
+        var user = TestSessions.guest(mvc);
+        mvc.perform(user.as(get("/ledger/accounts/{id}/transfers", SystemAccounts.PLATFORM_FEE_INR)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void transferHistoryNeedsSignIn() throws Exception {
+        mvc.perform(get("/ledger/accounts/{id}/transfers", SystemAccounts.PLATFORM_FEE_INR))
+                .andExpect(status().isUnauthorized());
+    }
+
+    private String createAccount(TestSessions.SignedIn user, String type) throws Exception {
+        String body = mvc.perform(user.as(post("/accounts")).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"" + type + "\",\"name\":\"Ledger test\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(body, "$.id");
     }
 }

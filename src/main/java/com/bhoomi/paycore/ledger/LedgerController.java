@@ -1,7 +1,10 @@
 package com.bhoomi.paycore.ledger;
 
+import com.bhoomi.paycore.account.AccountService;
+import com.bhoomi.paycore.user.CurrentUser;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,9 +21,11 @@ public class LedgerController {
     private static final int MAX_TRANSFERS = 100;
 
     private final LedgerService ledger;
+    private final AccountService accounts;
 
-    public LedgerController(LedgerService ledger) {
+    public LedgerController(LedgerService ledger, AccountService accounts) {
         this.ledger = ledger;
+        this.accounts = accounts;
     }
 
     @GetMapping("/overview")
@@ -41,11 +46,15 @@ public class LedgerController {
                 totals.creditsPosted(), totals.debitsPending(), totals.creditsPending(), totals.balanced());
     }
 
+    /** Transfer history of one of your accounts, or of PayCore's public system accounts. */
     @GetMapping("/accounts/{id}/transfers")
-    public List<LedgerEntry> transfers(@PathVariable UUID id, @RequestParam(defaultValue = "50") int limit) {
-        int bounded = Math.max(1, Math.min(limit, MAX_TRANSFERS));
-        ledger.getBalance(id); // 404 if the account does not exist
-        return ledger.getTransfers(id, bounded);
+    public List<LedgerEntry> transfers(@AuthenticationPrincipal CurrentUser me, @PathVariable UUID id,
+                                       @RequestParam(defaultValue = "50") int limit) {
+        boolean system = id.equals(SystemAccounts.externalFunding(Currency.INR)) || id.equals(SystemAccounts.platformFee(Currency.INR));
+        if (!system) {
+            accounts.getOwned(id, me.id());
+        }
+        return ledger.getTransfers(id, Math.max(1, Math.min(limit, MAX_TRANSFERS)));
     }
 
     public record LedgerOverview(Currency currency, long totalMoneyIn, long platformRevenue,

@@ -45,41 +45,62 @@ export function FlowDiagram() {
   const [active, setActive] = useState(0)
   const pathRefs = useRef({})
   const dotRef = useRef(null)
-  const glowRef = useRef(null)
 
   useEffect(() => {
-    if (reduce) return undefined
-    let frame
-    const start = performance.now()
     const cycle = STEPS.length * STEP_MS + PAUSE_MS
+    const start = performance.now()
+    let frame
     let lastStep = -1
-    const tick = (now) => {
-      const t = (now - start) % cycle
-      const step = Math.min(Math.floor(t / STEP_MS), STEPS.length - 1)
-      const inPause = t >= STEPS.length * STEP_MS
-      if (step !== lastStep) {
-        lastStep = step
-        setActive(step)
-      }
+    let lastFrameAt = start
+
+    // Moves the packet along the current path. Skipped for visitors who prefer reduced motion;
+    // the step cards below still advance for them.
+    const placePacket = (t, step, inPause) => {
       const path = pathRefs.current[STEPS[step].path]
       const dot = dotRef.current
-      if (path && dot) {
-        const progress = inPause ? 1 : Math.min((t - step * STEP_MS) / (STEP_MS * 0.8), 1)
-        const eased = 1 - Math.pow(1 - progress, 3)
-        const point = path.getPointAtLength(eased * path.getTotalLength())
-        dot.setAttribute('cx', point.x)
-        dot.setAttribute('cy', point.y)
-        dot.setAttribute('fill', STEPS[step].color)
-        glowRef.current.setAttribute('cx', point.x)
-        glowRef.current.setAttribute('cy', point.y)
-        glowRef.current.setAttribute('fill', STEPS[step].color)
-        dot.style.opacity = inPause ? 0 : 1
-        glowRef.current.style.opacity = inPause ? 0 : 0.5
+      if (!path || !dot) return
+      if (reduce) {
+        dot.style.opacity = 0
+        return
+      }
+      const progress = inPause ? 1 : Math.min((t - step * STEP_MS) / (STEP_MS * 0.8), 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      const point = path.getPointAtLength(eased * path.getTotalLength())
+      dot.setAttribute('cx', point.x)
+      dot.setAttribute('cy', point.y)
+      dot.setAttribute('fill', STEPS[step].color)
+      dot.style.opacity = inPause ? 0 : 1
+    }
+
+    const tick = () => {
+      lastFrameAt = performance.now()
+      try {
+        const t = (lastFrameAt - start) % cycle
+        const step = Math.min(Math.floor(t / STEP_MS), STEPS.length - 1)
+        if (step !== lastStep) {
+          lastStep = step
+          setActive(step)
+        }
+        placePacket(t, step, t >= STEPS.length * STEP_MS)
+      } catch {
+        // One bad frame must never stop the loop.
       }
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
+
+    // Watchdog: if frames stopped (tab was hidden, or the loop died), start them again.
+    const watchdog = setInterval(() => {
+      if (performance.now() - lastFrameAt > 1000) {
+        cancelAnimationFrame(frame)
+        frame = requestAnimationFrame(tick)
+      }
+    }, 1000)
+
+    return () => {
+      cancelAnimationFrame(frame)
+      clearInterval(watchdog)
+    }
   }, [reduce])
 
   const activePath = STEPS[active].path
@@ -87,15 +108,6 @@ export function FlowDiagram() {
   return (
     <div className="glass overflow-hidden rounded-3xl p-4 sm:p-8">
       <svg viewBox="0 0 890 360" className="w-full" role="img" aria-label="A payment flows from the client to the PayCore API, which records intent in PostgreSQL, moves money in TigerBeetle, then records the outcome.">
-        <defs>
-          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="6" />
-          </filter>
-          <linearGradient id="node" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="rgb(255 255 255 / 0.07)" />
-            <stop offset="1" stopColor="rgb(255 255 255 / 0.02)" />
-          </linearGradient>
-        </defs>
 
         {Object.entries(PATHS).filter(([k]) => k !== 'response').map(([key, d]) => (
           <path key={key} d={d} fill="none" stroke={activePath === key || (key === 'request' && activePath === 'response') ? 'rgb(255 255 255 / 0.28)' : 'rgb(255 255 255 / 0.1)'} strokeWidth="1.5" strokeDasharray="4 6" style={{ transition: 'stroke 300ms' }} />
@@ -115,25 +127,26 @@ export function FlowDiagram() {
             || (key === 'pg' && activePath === 'toPg') || (key === 'tb' && activePath === 'toTb')
           return (
             <g key={key}>
-              <rect x={n.x} y={n.y} width={n.w} height={n.h} rx="14" fill="url(#node)" stroke={lit ? 'rgb(255 255 255 / 0.35)' : 'rgb(255 255 255 / 0.12)'} style={{ transition: 'stroke 300ms' }} />
+              <rect x={n.x} y={n.y} width={n.w} height={n.h} rx="14" fill="#12151c" stroke={lit ? 'rgb(255 255 255 / 0.35)' : 'rgb(255 255 255 / 0.12)'} style={{ transition: 'stroke 300ms' }} />
               <text x={n.x + n.w / 2} y={n.y + 28} textAnchor="middle" className="fill-[#f4f5f7] text-[15px] font-semibold">{n.title}</text>
               <text x={n.x + n.w / 2} y={n.y + 47} textAnchor="middle" className="fill-[#9aa1ad] text-[12px]">{n.sub}</text>
             </g>
           )
         })}
 
-        <circle ref={glowRef} r="14" filter="url(#glow)" opacity="0" />
         <circle ref={dotRef} r="5" opacity="0" />
       </svg>
 
-      <ol className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <ol className="mt-6 grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {STEPS.map((s, i) => {
-          const isActive = i === active && !reduce
+          const isActive = i === active
           return (
             <li
               key={s.label}
               className={cn(
                 'relative flex h-full flex-col overflow-hidden rounded-2xl border p-4 transition-colors duration-300',
+                // 5 cards in a 2-column grid: the last one spans both columns so the block stays even.
+                i === STEPS.length - 1 && 'sm:col-span-2 lg:col-span-1',
                 isActive ? 'border-line-strong bg-white/[0.05]' : 'border-line bg-white/[0.015]',
               )}
             >

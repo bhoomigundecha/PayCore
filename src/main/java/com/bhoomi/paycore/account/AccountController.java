@@ -4,14 +4,17 @@ import com.bhoomi.paycore.common.IdempotencyKeys;
 import com.bhoomi.paycore.ledger.AccountBalance;
 import com.bhoomi.paycore.ledger.AccountType;
 import com.bhoomi.paycore.ledger.Currency;
+import com.bhoomi.paycore.user.CurrentUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,24 +34,34 @@ public class AccountController {
         this.accountService = accountService;
     }
 
+    /** Accounts owned by the signed-in user, with live balances. */
+    @GetMapping
+    public List<AccountResponse> list(@AuthenticationPrincipal CurrentUser me) {
+        return accountService.listOwned(me.id()).stream()
+                .map(a -> AccountResponse.of(a, accountService.balance(a.getId())))
+                .toList();
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public AccountResponse create(@Valid @RequestBody CreateAccountRequest request) {
-        Account account = accountService.create(request.type(), request.name(), Currency.INR);
+    public AccountResponse create(@AuthenticationPrincipal CurrentUser me, @Valid @RequestBody CreateAccountRequest request) {
+        Account account = accountService.create(me.id(), request.type(), request.name(), Currency.INR);
         return AccountResponse.of(account, accountService.balance(account.getId()));
     }
 
     @GetMapping("/{id}")
-    public AccountResponse get(@PathVariable UUID id) {
-        return AccountResponse.of(accountService.get(id), accountService.balance(id));
+    public AccountResponse get(@AuthenticationPrincipal CurrentUser me, @PathVariable UUID id) {
+        return AccountResponse.of(accountService.getOwned(id, me.id()), accountService.balance(id));
     }
 
-    /** Adds money from outside PayCore; stands in for a confirmed bank or card deposit. */
+    /** Adds play money to one of your accounts; stands in for a confirmed bank deposit. */
     @PostMapping("/{id}/top-ups")
-    public TopUpResponse topUp(@PathVariable UUID id,
+    public TopUpResponse topUp(@AuthenticationPrincipal CurrentUser me,
+                               @PathVariable UUID id,
                                @RequestHeader(IdempotencyKeys.HEADER) String idempotencyKey,
                                @Valid @RequestBody TopUpRequest request) {
-        TopUp topUp = accountService.topUp(IdempotencyKeys.validate(idempotencyKey), id, request.amount());
+        accountService.getOwned(id, me.id());
+        TopUp topUp = accountService.topUp(IdempotencyKeys.scoped(me.id(), idempotencyKey), id, request.amount());
         return new TopUpResponse(topUp.getId(), topUp.getAccountId(), topUp.getAmount(),
                 topUp.getStatus().name(), accountService.balance(id));
     }

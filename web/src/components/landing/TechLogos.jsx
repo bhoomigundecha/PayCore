@@ -35,18 +35,21 @@ function Logo({ item }) {
   const hex = item.icon?.hex ?? item.hex
   return (
     <div
-      className="group flex items-center gap-3 px-6 text-faint transition-colors duration-300 hover:text-[var(--brand)]"
+      className="group relative grid place-items-center px-7 text-faint transition-colors duration-300 hover:text-[var(--brand)]"
       style={{ '--brand': hoverColor(hex) }}
-      title={item.name}
     >
       {item.custom ? (
-        <item.custom className="size-7" aria-hidden />
+        <item.custom className="size-9" aria-label={item.name} role="img" />
       ) : (
-        <svg viewBox="0 0 24 24" className="size-7 fill-current" aria-hidden>
+        <svg viewBox="0 0 24 24" className="size-9 fill-current" role="img" aria-label={item.name}>
+          <title>{item.name}</title>
           <path d={item.icon.path} />
         </svg>
       )}
-      <span className="text-[15px] font-medium whitespace-nowrap text-muted transition-colors duration-300 group-hover:text-ink">{item.name}</span>
+      {/* Name appears on hover only */}
+      <span className="pointer-events-none absolute -bottom-7 rounded-md border border-line bg-raised px-2 py-0.5 text-[11px] whitespace-nowrap text-ink opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+        {item.name}
+      </span>
     </div>
   )
 }
@@ -55,7 +58,7 @@ export function TechLogos() {
   return (
     <section aria-label="Technologies used" className="mt-28">
       <p className="text-center text-xs font-semibold tracking-[0.2em] text-faint uppercase">Built with</p>
-      <Marquee className="mt-8" duration="50s">
+      <Marquee className="mt-8 pb-8" duration="45s">
         {TECH.map((item) => <Logo key={item.name} item={item} />)}
       </Marquee>
     </section>

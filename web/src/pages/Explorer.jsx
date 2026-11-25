@@ -11,7 +11,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { NumberTicker } from '../components/ui/NumberTicker'
 import { CopyId, EmptyState, PageHeader, Skeleton } from '../components/ui/misc'
-import { readLabAccounts } from '../components/lab/labApi'
+import { AuthGate } from '../components/auth/AuthGate'
 
 const KIND = {
   POSTED: { label: 'Posted', tone: 'neutral' },
@@ -25,7 +25,6 @@ function Invariant() {
   const { data, loading, reload } = useApi(() => api.ledgerTotals(), [])
   return (
     <Card className="relative overflow-hidden p-6 sm:p-8">
-      <div aria-hidden className="absolute -top-24 -right-24 size-72 rounded-full bg-brand/10 blur-3xl" />
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-md">
           <p className="flex items-center gap-2 text-xs font-semibold tracking-[0.2em] text-brand uppercase"><Scale className="size-3.5" /> The double-entry invariant</p>
@@ -210,10 +209,9 @@ function AccountLedger({ accountId, nameOf }) {
 }
 
 export default function Explorer() {
-  const { customers, merchants } = useSandbox()
+  const { customers, merchants, labAccounts: lab } = useSandbox()
   const accounts = useMemo(() => [...customers, ...merchants], [customers, merchants])
   const overview = useApi(() => api.ledgerOverview(), [])
-  const lab = useMemo(() => readLabAccounts(), [])
   const [selected, setSelected] = useState(null)
 
   const system = overview.data ? [
@@ -222,7 +220,7 @@ export default function Explorer() {
   ] : []
 
   const groups = [
-    { title: 'Your sandbox', icon: Wallet, accounts },
+    { title: 'Your accounts', icon: Wallet, accounts },
     { title: 'Lab runs', icon: FlaskConical, accounts: lab },
     { title: 'PayCore system', icon: Building2, accounts: system },
   ]
@@ -239,13 +237,17 @@ export default function Explorer() {
       />
       <div className="mt-8"><Invariant /></div>
 
+      <div className="mt-8">
+        <AuthGate title="Sign in to inspect your accounts" description="The invariant above is public. Account-level ledger entries are private to their owner.">
       <div className="mt-8 grid gap-8 lg:grid-cols-[260px_1fr]">
-        <div className="lg:sticky lg:top-24 lg:self-start">
-          <AccountList groups={groups} selected={current} onSelect={setSelected} />
-        </div>
-        <div className="min-w-0">
-          {current ? <AccountLedger accountId={current} nameOf={nameOf} /> : <Skeleton className="h-64 w-full rounded-2xl" />}
-        </div>
+            <div className="lg:sticky lg:top-24 lg:self-start">
+              <AccountList groups={groups} selected={current} onSelect={setSelected} />
+            </div>
+            <div className="min-w-0">
+              {current ? <AccountLedger accountId={current} nameOf={nameOf} /> : <Skeleton className="h-64 w-full rounded-2xl" />}
+            </div>
+          </div>
+        </AuthGate>
       </div>
     </div>
   )

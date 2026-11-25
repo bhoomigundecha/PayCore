@@ -35,12 +35,17 @@ public class Account {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /** The user who owns this account. Null only for rows created before users existed. */
+    @Column(name = "owner_user_id")
+    private UUID ownerUserId;
+
     protected Account() {
         // for JPA
     }
 
-    public Account(UUID id, AccountType type, String name, Currency currency) {
+    public Account(UUID id, AccountType type, String name, Currency currency, UUID ownerUserId) {
         this.id = id;
+        this.ownerUserId = ownerUserId;
         this.type = type;
         this.name = name;
         this.currency = currency;
@@ -65,5 +70,13 @@ public class Account {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public UUID getOwnerUserId() {
+        return ownerUserId;
+    }
+
+    public boolean isOwnedBy(UUID userId) {
+        return userId != null && userId.equals(ownerUserId);
     }
 }

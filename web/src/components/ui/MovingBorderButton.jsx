@@ -1,23 +1,18 @@
 import { Link } from 'react-router'
 import { cn } from '../../lib/cn'
 
-/**
- * Call-to-action with a light that travels around its border (a rotating conic gradient
- * behind a slightly smaller inner surface).
- */
+/** Primary call-to-action: solid, high-contrast, with an arrow that nudges on hover. */
 export function MovingBorderButton({ to, children, className }) {
   return (
     <Link
       to={to}
-      className={cn('group relative inline-flex h-12 overflow-hidden rounded-xl p-px transition-transform active:scale-[0.98]', className)}
+      className={cn(
+        'group inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-ink px-6 text-[15px] font-medium text-canvas',
+        'transition-colors hover:bg-white active:scale-[0.98] [&_svg]:transition-transform hover:[&_svg]:translate-x-0.5',
+        className,
+      )}
     >
-      <span
-        aria-hidden
-        className="absolute inset-[-200%] animate-spin-slow bg-[conic-gradient(from_90deg,transparent_0%,transparent_70%,#34d399_80%,#7dd3fc_88%,transparent_100%)]"
-      />
-      <span className="relative inline-flex size-full items-center justify-center gap-2 rounded-[11px] bg-surface/95 px-6 text-[15px] font-medium text-ink backdrop-blur transition-colors group-hover:bg-raised">
-        {children}
-      </span>
+      {children}
     </Link>
   )
 }

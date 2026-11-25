@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { motion } from 'motion/react'
-import { ArrowRight, Ban, CircleCheck, Trash2, Undo2 } from 'lucide-react'
+import { ArrowRight, Ban, CircleCheck, KeyRound, Undo2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '../../api/client'
-import { useApi } from '../../hooks/useApi'
 import { useSandbox } from '../../hooks/useSandbox'
 import { formatPaise } from '../../lib/money'
 import { StatusBadge } from '../ui/Badge'
 import { Button } from '../ui/Button'
-import { CopyId, Skeleton } from '../ui/misc'
+import { CopyId } from '../ui/misc'
 import { PaymentStepper } from './PaymentStepper'
+import { launchFlight } from '../../lib/flight'
+import { ApprovePaymentDialog } from './ApprovePaymentDialog'
 
 const ACTIONS = {
   AUTHORIZED: [
@@ -22,21 +23,34 @@ const ACTIONS = {
 }
 
 const REASONS = {
+  authentication_failed: 'Cancelled: too many wrong one-time codes',
+  authentication_expired: 'Cancelled: the one-time code was never entered',
   insufficient_funds: 'Not enough available balance',
   authorization_expired: 'The hold expired before capture',
   refund_failed_insufficient_merchant_balance: 'Refund failed: merchant balance too low',
   declined: 'Declined by the ledger',
 }
 
-export function PaymentCard({ paymentId }) {
-  const { version, refresh, nameOf, forgetPayment } = useSandbox()
-  const { data: p, error } = useApi(() => api.getPayment(paymentId), [paymentId, version])
+export function PaymentCard({ payment: p }) {
+  const { refresh, owns } = useSandbox()
   const [busy, setBusy] = useState(null)
+  const [approving, setApproving] = useState(false)
+  const paymentId = p.id
+  const isMerchant = owns(p.merchantAccountId)
+  const isPayer = owns(p.customerAccountId)
 
   const run = async (action) => {
     setBusy(action.key)
     try {
       await action.call(paymentId)
+      const customer = p.customerAccountId
+      const merchant = p.merchantAccountId
+      const flight = {
+        capture: { from: customer, to: merchant, kind: 'captured', fee: p.fee },
+        cancel: { from: merchant, to: customer, kind: 'released', fee: 0 },
+        refund: { from: merchant, to: customer, kind: 'refunded', fee: p.fee },
+      }[action.key]
+      await launchFlight({ ...flight, amount: p.amount })
       toast.success(action.done)
       refresh()
     } catch (e) {
@@ -46,25 +60,30 @@ export function PaymentCard({ paymentId }) {
     }
   }
 
-  if (error?.status === 404) {
-    return (
-      <div className="flex items-center justify-between rounded-2xl border border-dashed border-line p-4 text-sm text-muted">
-        Payment no longer exists.
-        <button type="button" onClick={() => forgetPayment(paymentId)} className="inline-flex items-center gap-1 text-xs hover:text-ink"><Trash2 className="size-3.5" /> Forget</button>
-      </div>
-    )
-  }
-  if (!p) return <Skeleton className="h-36 w-full rounded-2xl" />
+  // Capture, release and refund are the merchant's decisions (the server enforces this too).
+  const actions = isMerchant ? ACTIONS[p.status] ?? [] : []
 
-  const actions = ACTIONS[p.status] ?? []
+  const onApproved = async (result) => {
+    setApproving(false)
+    const kind = result.status === 'FAILED' ? 'declined' : result.status === 'CAPTURED' ? 'captured' : 'held'
+    await launchFlight({ from: result.customerAccountId, to: result.merchantAccountId, amount: result.amount, fee: result.fee, kind })
+    refresh()
+    if (result.status === 'FAILED') toast.error('Payment cancelled: it was not approved')
+    else toast.success(`Approved: paid ${formatPaise(result.amount)} to ${result.merchantName}`)
+  }
 
   return (
+    <>
+    <ApprovePaymentDialog payment={approving ? p : null} open={approving} onClose={() => setApproving(false)} onApproved={onApproved} />
     <motion.article layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-2xl p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-2xl font-semibold tracking-tight text-ink tabular">{formatPaise(p.amount)}</p>
           <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
-            {nameOf(p.customerAccountId) ?? 'Customer'} <ArrowRight className="size-3.5 text-faint" /> {nameOf(p.merchantAccountId) ?? 'Merchant'}
+            {p.customerName} <ArrowRight className="size-3.5 text-faint" /> {p.merchantName}
+            <span className="ml-1 rounded-md border border-line px-1.5 py-px text-[10px] text-faint">
+              {isMerchant && isPayer ? 'you → your store' : isMerchant ? 'incoming' : 'you paid'}
+            </span>
           </p>
         </div>
         <div className="flex flex-col items-end gap-1.5">
@@ -85,6 +104,12 @@ export function PaymentCard({ paymentId }) {
         <p className="text-xs text-faint tabular">
           Fee {formatPaise(p.fee)} · merchant {formatPaise(p.amount - p.fee)} · {new Date(p.createdAt).toLocaleTimeString()}
         </p>
+        {!isMerchant && p.status === 'AUTHORIZED' && <p className="text-xs text-faint">Waiting for the merchant to capture</p>}
+        {isPayer && p.status === 'REQUIRES_AUTHENTICATION' && (
+          <Button size="sm" variant="brand" onClick={() => setApproving(true)}>
+            <KeyRound className="size-3.5" /> Enter code
+          </Button>
+        )}
         {actions.length > 0 && (
           <div className="flex gap-2">
             {actions.map((a) => (
@@ -96,5 +121,6 @@ export function PaymentCard({ paymentId }) {
         )}
       </div>
     </motion.article>
+    </>
   )
 }

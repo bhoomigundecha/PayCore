@@ -1,66 +1,46 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import { api } from '../api/client'
-import { useLocalStorage } from './useLocalStorage'
+import { useApi } from './useApi'
+import { useAuth } from './useAuth'
+import { LAB_PREFIX } from '../components/lab/labApi'
 
 /**
- * Every visitor gets a private sandbox: the accounts and payments they created are remembered
- * in localStorage. `version` bumps after every mutation so balances and lists refetch.
+ * The signed-in user's accounts and payments, loaded from the server.
+ * `version` bumps after every mutation so balances and lists refetch.
  */
 const SandboxContext = createContext(null)
 
-export const DEMO_CUSTOMER = 'Asha Rao'
-export const DEMO_MERCHANT = 'Monsoon Café'
-
 export function SandboxProvider({ children }) {
-  const [accounts, setAccounts] = useLocalStorage('paycore.accounts', [])
-  const [payments, setPayments] = useLocalStorage('paycore.payments', [])
+  const { user } = useAuth()
   const [version, setVersion] = useState(0)
-
   const refresh = useCallback(() => setVersion((v) => v + 1), [])
+
+  const enabled = !!user
+  const accountsQuery = useApi(() => api.listAccounts(), [version, user?.id], { enabled })
+  const paymentsQuery = useApi(() => api.listPayments(), [version, user?.id], { enabled })
 
   const addAccount = useCallback(async (type, name) => {
     const account = await api.createAccount(type, name)
-    setAccounts((prev) => [{ id: account.id, name: account.name, type: account.type }, ...prev])
     refresh()
     return account
-  }, [setAccounts, refresh])
-
-  const rememberPayment = useCallback((id) => {
-    setPayments((prev) => [id, ...prev.filter((p) => p !== id)])
-    refresh()
-  }, [setPayments, refresh])
-
-  const quickStart = useCallback(async () => {
-    const customer = await addAccount('CUSTOMER_WALLET', DEMO_CUSTOMER)
-    const merchant = await addAccount('MERCHANT', DEMO_MERCHANT)
-    await api.topUp(customer.id, 500_000) // ₹5,000
-    refresh()
-    return { customer, merchant }
-  }, [addAccount, refresh])
-
-  const forgetAccount = useCallback((id) => {
-    setAccounts((prev) => prev.filter((a) => a.id !== id))
-  }, [setAccounts])
-
-  const forgetPayment = useCallback((id) => {
-    setPayments((prev) => prev.filter((p) => p !== id))
-  }, [setPayments])
-
-  const reset = useCallback(() => {
-    setAccounts([])
-    setPayments([])
-    refresh()
-  }, [setAccounts, setPayments, refresh])
+  }, [refresh])
 
   const value = useMemo(() => {
+    const all = enabled ? accountsQuery.data ?? [] : []
+    // Accounts made by Lab experiments are kept out of the Playground but stay inspectable in the Explorer.
+    const labAccounts = all.filter((a) => a.name.startsWith(LAB_PREFIX))
+    const accounts = all.filter((a) => !a.name.startsWith(LAB_PREFIX))
     const customers = accounts.filter((a) => a.type === 'CUSTOMER_WALLET')
     const merchants = accounts.filter((a) => a.type === 'MERCHANT')
-    const nameOf = (id) => accounts.find((a) => a.id === id)?.name
+    const nameOf = (id) => all.find((a) => a.id === id)?.name
+    const owns = (id) => all.some((a) => a.id === id)
     return {
-      accounts, customers, merchants, payments, version,
-      refresh, addAccount, rememberPayment, quickStart, reset, nameOf, forgetAccount, forgetPayment,
+      accounts, customers, merchants, labAccounts,
+      payments: enabled ? (paymentsQuery.data ?? []).filter((p) => !p.customerName.startsWith(LAB_PREFIX)) : [],
+      loading: enabled && (accountsQuery.loading || paymentsQuery.loading),
+      version, refresh, addAccount, nameOf, owns,
     }
-  }, [accounts, payments, version, refresh, addAccount, rememberPayment, quickStart, reset, forgetAccount, forgetPayment])
+  }, [enabled, accountsQuery.data, accountsQuery.loading, paymentsQuery.data, paymentsQuery.loading, version, refresh, addAccount])
 
   return <SandboxContext.Provider value={value}>{children}</SandboxContext.Provider>
 }

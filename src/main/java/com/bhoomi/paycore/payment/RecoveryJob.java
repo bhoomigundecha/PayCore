@@ -21,6 +21,8 @@ import org.springframework.stereotype.Component;
 public class RecoveryJob {
 
     private static final Logger log = LoggerFactory.getLogger(RecoveryJob.class);
+    /** Matches the one-time code's lifetime, plus a margin. */
+    private static final Duration UNAPPROVED_TIMEOUT = Duration.ofMinutes(10);
 
     private final PaymentRepository payments;
     private final PaymentService paymentService;
@@ -46,6 +48,10 @@ public class RecoveryJob {
                 PaymentStatus before = payment.getStatus();
                 Payment result = paymentService.advance(payment);
                 log.info("Recovered payment {}: {} -> {}", payment.getId(), before, result.getStatus());
+            }
+            int expired = paymentService.expireUnapproved(Instant.now().minus(UNAPPROVED_TIMEOUT));
+            if (expired > 0) {
+                log.info("Expired {} payment(s) whose one-time code was never entered", expired);
             }
             for (TopUp topUp : topUps.findTop100ByStatusAndUpdatedAtBefore(TopUp.Status.PENDING, cutoff)) {
                 accountService.completeTopUp(topUp);

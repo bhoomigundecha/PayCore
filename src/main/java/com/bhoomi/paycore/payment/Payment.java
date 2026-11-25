@@ -48,6 +48,10 @@ public class Payment {
     @Column(name = "failure_reason")
     private String failureReason;
 
+    /** Set when the payment pays a checkout session (payment link). At most one live payment per session. */
+    @Column(name = "checkout_session_id")
+    private UUID checkoutSessionId;
+
     /** Optimistic locking: concurrent updates to the same payment cannot silently overwrite each other. */
     @Version
     private Long version;
@@ -80,6 +84,10 @@ public class Payment {
     @PreUpdate
     void touch() {
         updatedAt = Instant.now();
+    }
+
+    void linkCheckout(UUID checkoutSessionId) {
+        this.checkoutSessionId = checkoutSessionId;
     }
 
     void moveTo(PaymentStatus newStatus) {
@@ -134,6 +142,10 @@ public class Payment {
 
     public String getFailureReason() {
         return failureReason;
+    }
+
+    public UUID getCheckoutSessionId() {
+        return checkoutSessionId;
     }
 
     public Instant getCreatedAt() {

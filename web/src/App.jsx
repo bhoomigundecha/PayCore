@@ -5,6 +5,7 @@ import { Toaster } from 'sonner'
 import { Navbar } from './components/layout/Navbar'
 import { Footer } from './components/layout/Footer'
 import { SandboxProvider } from './hooks/useSandbox'
+import { AuthProvider } from './hooks/useAuth'
 import Landing from './pages/Landing'
 import NotFound from './pages/NotFound'
 
@@ -13,6 +14,8 @@ const Playground = lazy(() => import('./pages/Playground'))
 const Lab = lazy(() => import('./pages/Lab'))
 const Explorer = lazy(() => import('./pages/Explorer'))
 const HowItWorks = lazy(() => import('./pages/HowItWorks'))
+const SignIn = lazy(() => import('./pages/SignIn'))
+const Checkout = lazy(() => import('./pages/Checkout'))
 
 function PageFallback() {
   return <div className="mx-auto h-[60vh] max-w-7xl px-6 py-10"><div className="h-10 w-64 animate-pulse rounded-lg bg-white/[0.06]" /></div>
@@ -27,6 +30,7 @@ function ScrollToTop() {
 export default function App() {
   return (
     <MotionConfig reducedMotion="user">
+      <AuthProvider>
       <SandboxProvider>
         <ScrollToTop />
         <div className="flex min-h-dvh flex-col">
@@ -39,6 +43,8 @@ export default function App() {
               <Route path="/lab" element={<Lab />} />
               <Route path="/explorer" element={<Explorer />} />
               <Route path="/how-it-works" element={<HowItWorks />} />
+              <Route path="/signin" element={<SignIn />} />
+              <Route path="/pay/:id" element={<Checkout />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             </Suspense>
@@ -51,6 +57,7 @@ export default function App() {
           toastOptions={{ className: '!bg-raised !border-line !text-ink !rounded-xl' }}
         />
       </SandboxProvider>
+      </AuthProvider>
     </MotionConfig>
   )
 }

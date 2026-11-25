@@ -25,7 +25,9 @@ GET  /payments/{id}, /accounts/{id}
 
 | Page | What you can do |
 |---|---|
-| **Playground** | One-click sandbox (wallet with ₹5,000 + merchant), then pay, hold, capture, release and refund, with live ledger balances |
+| **Sign up / guest** | Email + password, or one-click guest. Every user gets a wallet with ₹5,000 of play money, a virtual PayCore card and a store |
+| **Playground** | Your card (reveal number + CVC on demand), then pay, hold, capture, release and refund, with live ledger balances and an animated payment flow. Create payment links for your store |
+| **Checkout** `/pay/:id` | Hosted payment page: live card preview that flips for the CVC, instant Luhn check, decline codes, and a one-time-code step for large amounts |
 | **Break-it Lab** | Fire real concurrent attacks at the API: a retry storm (5 identical requests → 1 charge), a race to overspend (20 payments vs a wallet that affords 5), hold-and-release, and idempotency-key misuse |
 | **Ledger Explorer** | Every TigerBeetle transfer for any account as a T-account, plus a live check that total debits = total credits across the whole ledger |
 | **How it works** | Pick where the server crashes during a payment and see what each database holds and how PayCore recovers |
@@ -59,6 +61,12 @@ every movement is a balanced double-entry transfer, and overdrafts are rejected 
 | **Partial payments.** The merchant gets paid but the platform fee fails. | Merchant leg and fee leg are submitted as **linked transfers**: both succeed or neither does. | `authorizeHoldsMoneyAndCaptureMovesIt` |
 | **Invalid transitions.** Capturing a cancelled payment. | Explicit state machine in Postgres, plus the ledger rejects posting a voided hold. | `cancelledPaymentCannotBeCaptured` |
 | **Floating-point money.** | All amounts are integers in the smallest unit (paise); fees use basis points. | `FeePolicy` |
+| **Storing card data safely.** | Card numbers are encrypted with AES-256-GCM and looked up by an HMAC fingerprint; the CVC is never stored, it is derived on demand (like issuers compute CVV2). Numbers are Luhn-valid in PayCore's own `9900 01` test range. | `theDatabaseNeverHoldsTheCardNumberOrCvcInPlainText`, `CardNumbersTest` |
+| **Users touching each other's money.** | Session auth (Spring Security, BCrypt, sessions in Redis, CSRF tokens). Every account, payment and ledger query checks ownership and answers 404 for anything that isn't yours; only the merchant can capture or refund. Idempotency keys are scoped per user. | `youCannotSeeOrSpendSomeoneElsesWallet`, `onlyTheMerchantCanCapture…` |
+| **Paying a link twice, or two cards racing for it.** | Hosted checkout for payment links: a partial unique index allows at most one non-failed payment per link, so concurrent payers can't both succeed; declined attempts don't count, so the buyer can retry. | `twoCardsRacingToPayTheSameLinkCannotBothSucceed` (6 cards, exactly 1 approved) |
+| **Card checks like an issuer.** | Luhn, expiry, CVC re-derived and compared in constant time, card locked after 5 wrong attempts, network-style decline codes (`incorrect_number`, `expired_card`, `incorrect_cvc`, `insufficient_funds`, `card_declined`) returned as HTTP 402; large checkouts ask the cardholder for a one-time code, 3-D Secure style. | `declineCodesExplainWhatWentWrongAndMoveNoMoney`, `repeatedWrongCvcsLockTheCard`, `largeCheckoutWaitsForTheCardholdersCodeThenPays` |
+| **Large payments approved by someone else.** | Risk-based step-up: payments of ₹2,000+ wait in `REQUIRES_AUTHENTICATION` for a one-time code before the ledger is touched. Only an HMAC of (payment, amount, payee, code) is stored in Redis with a 5-minute TTL, so a code approves exactly one payment (dynamic linking); 3 attempts, constant-time check, resend cooldown. | `aCodeOnlyApprovesThePaymentItWasIssuedFor`, `threeWrongCodesFailThePaymentForGood` |
+| **Password guessing.** | Stricter Redis rate limit on sign-up/login that runs before authentication; identical answers and timing for unknown emails and wrong passwords. | `loginWithTheRightPasswordWorksAndTheWrongOneIs401` |
 
 ## Design decisions
 

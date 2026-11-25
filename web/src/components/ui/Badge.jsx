@@ -19,6 +19,7 @@ export function Badge({ tone = 'neutral', className, children, dot = false }) {
 }
 
 const STATUS = {
+  REQUIRES_AUTHENTICATION: { tone: 'hold', label: 'Needs approval', live: true },
   AUTHORIZING: { tone: 'info', label: 'Authorizing', live: true },
   AUTHORIZED: { tone: 'hold', label: 'Authorized' },
   CAPTURING: { tone: 'info', label: 'Capturing', live: true },

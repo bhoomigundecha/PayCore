@@ -3,7 +3,9 @@ package com.bhoomi.paycore.common;
 import com.bhoomi.paycore.ledger.AccountNotFoundException;
 import com.bhoomi.paycore.ledger.InsufficientFundsException;
 import com.bhoomi.paycore.ledger.LedgerConflictException;
+import com.bhoomi.paycore.card.CardDeclinedException;
 import com.bhoomi.paycore.ledger.LedgerException;
+import com.bhoomi.paycore.stepup.WrongCodeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -24,6 +26,16 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
+    @ExceptionHandler(UnauthorizedException.class)
+    public ProblemDetail handleUnauthorized(UnauthorizedException e) {
+        return problem(HttpStatus.UNAUTHORIZED, e.getMessage());
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ProblemDetail handleForbidden(ForbiddenException e) {
+        return problem(HttpStatus.FORBIDDEN, e.getMessage());
+    }
+
     @ExceptionHandler(InvalidRequestException.class)
     public ProblemDetail handleInvalidRequest(InvalidRequestException e) {
         return problem(HttpStatus.BAD_REQUEST, e.getMessage());
@@ -37,6 +49,21 @@ public class ApiExceptionHandler {
     @ExceptionHandler({InsufficientFundsException.class, IdempotencyKeyReusedException.class})
     public ProblemDetail handleUnprocessable(RuntimeException e) {
         return problem(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage());
+    }
+
+    @ExceptionHandler(CardDeclinedException.class)
+    public ProblemDetail handleDeclined(CardDeclinedException e) {
+        ProblemDetail problem = problem(HttpStatus.PAYMENT_REQUIRED, e.getMessage());
+        problem.setTitle("Card declined");
+        problem.setProperty("declineCode", e.code());
+        return problem;
+    }
+
+    @ExceptionHandler(WrongCodeException.class)
+    public ProblemDetail handleWrongCode(WrongCodeException e) {
+        ProblemDetail problem = problem(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage());
+        problem.setProperty("attemptsLeft", e.attemptsLeft());
+        return problem;
     }
 
     @ExceptionHandler(LedgerException.class)

@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.bhoomi.paycore.ledger.Currency;
 import com.bhoomi.paycore.ledger.PaymentLedger;
+import com.bhoomi.paycore.support.TestSessions;
 import com.jayway.jsonpath.JsonPath;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +20,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
  * End-to-end through HTTP, Postgres and the real local TigerBeetle.
@@ -42,9 +44,11 @@ class PaymentApiIntegrationTest {
 
     String customer;
     String merchant;
+    TestSessions.SignedIn user;
 
     @BeforeEach
     void setUp() throws Exception {
+        user = TestSessions.guest(mvc);
         customer = createAccount("CUSTOMER_WALLET", "Asha");
         merchant = createAccount("MERCHANT", "Chai Point");
         topUp(customer, 100_000, UUID.randomUUID().toString()).andExpect(status().isOk());
@@ -86,8 +90,8 @@ class PaymentApiIntegrationTest {
                 .andReturn().getResponse().getContentAsString(), "$.id");
         assertThat(available(customer)).isEqualTo(90_000); // held, not spendable
 
-        mvc.perform(post("/payments/{id}/capture", id)).andExpect(jsonPath("$.status").value("CAPTURED"));
-        mvc.perform(post("/payments/{id}/refund", id)).andExpect(jsonPath("$.status").value("REFUNDED"));
+        perform(post("/payments/{id}/capture", id)).andExpect(jsonPath("$.status").value("CAPTURED"));
+        perform(post("/payments/{id}/refund", id)).andExpect(jsonPath("$.status").value("REFUNDED"));
 
         assertThat(available(customer)).isEqualTo(100_000);
         assertThat(available(merchant)).isZero();
@@ -98,8 +102,8 @@ class PaymentApiIntegrationTest {
         String id = JsonPath.read(createPayment(UUID.randomUUID().toString(), 10_000, false)
                 .andReturn().getResponse().getContentAsString(), "$.id");
 
-        mvc.perform(post("/payments/{id}/cancel", id)).andExpect(jsonPath("$.status").value("CANCELED"));
-        mvc.perform(post("/payments/{id}/capture", id)).andExpect(status().isConflict());
+        perform(post("/payments/{id}/cancel", id)).andExpect(jsonPath("$.status").value("CANCELED"));
+        perform(post("/payments/{id}/capture", id)).andExpect(status().isConflict());
         assertThat(available(customer)).isEqualTo(100_000);
     }
 
@@ -114,7 +118,7 @@ class PaymentApiIntegrationTest {
 
     @Test
     void missingIdempotencyKeyIsRejected() throws Exception {
-        mvc.perform(post("/payments").contentType(MediaType.APPLICATION_JSON)
+        perform(post("/payments").contentType(MediaType.APPLICATION_JSON)
                         .content(paymentBody(10_000, true)))
                 .andExpect(status().isBadRequest());
     }
@@ -149,8 +153,13 @@ class PaymentApiIntegrationTest {
         assertThat(available(merchant)).isEqualTo(9_800);
     }
 
+    /** Every request in this test is made as the signed-in guest user. */
+    private ResultActions perform(MockHttpServletRequestBuilder request) throws Exception {
+        return mvc.perform(user.as(request));
+    }
+
     private String createAccount(String type, String name) throws Exception {
-        String body = mvc.perform(post("/accounts").contentType(MediaType.APPLICATION_JSON)
+        String body = perform(post("/accounts").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"" + type + "\",\"name\":\"" + name + "\"}"))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
@@ -158,14 +167,14 @@ class PaymentApiIntegrationTest {
     }
 
     private ResultActions topUp(String accountId, long amount, String key) throws Exception {
-        return mvc.perform(post("/accounts/{id}/top-ups", accountId)
+        return perform(post("/accounts/{id}/top-ups", accountId)
                 .header("Idempotency-Key", key)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"amount\":" + amount + "}"));
     }
 
     private ResultActions createPayment(String key, long amount, boolean capture) throws Exception {
-        return mvc.perform(post("/payments")
+        return perform(post("/payments")
                 .header("Idempotency-Key", key)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(paymentBody(amount, capture)));
@@ -177,7 +186,7 @@ class PaymentApiIntegrationTest {
     }
 
     private long available(String accountId) throws Exception {
-        String body = mvc.perform(get("/accounts/{id}", accountId)).andReturn().getResponse().getContentAsString();
+        String body = perform(get("/accounts/{id}", accountId)).andReturn().getResponse().getContentAsString();
         return ((Number) JsonPath.read(body, "$.balance.available")).longValue();
     }
 }

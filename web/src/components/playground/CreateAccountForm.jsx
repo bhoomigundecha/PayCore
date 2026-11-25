@@ -5,7 +5,7 @@ import { useSandbox } from '../../hooks/useSandbox'
 import { Button } from '../ui/Button'
 import { Field, Segmented, TextInput } from '../ui/Form'
 
-export function CreateAccountForm() {
+export function CreateAccountForm({ onCreated }) {
   const { addAccount } = useSandbox()
   const [type, setType] = useState('CUSTOMER_WALLET')
   const [name, setName] = useState('')
@@ -19,6 +19,7 @@ export function CreateAccountForm() {
       await addAccount(type, name.trim())
       toast.success(`Created ${name.trim()}`)
       setName('')
+      onCreated?.()
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -41,7 +42,7 @@ export function CreateAccountForm() {
       <div className="flex gap-2">
         <Field label="Name" className="flex-1">
           {(id) => (
-            <TextInput id={id} value={name} maxLength={200} onChange={(e) => setName(e.target.value)} placeholder={type === 'MERCHANT' ? 'e.g. Monsoon Café' : 'e.g. Asha Rao'} />
+            <TextInput id={id} autoFocus value={name} maxLength={200} onChange={(e) => setName(e.target.value)} placeholder={type === 'MERCHANT' ? 'e.g. Monsoon Café' : 'e.g. Asha Rao'} />
           )}
         </Field>
         <Button type="submit" variant="secondary" loading={busy} disabled={!name.trim()} className="mt-[22px] h-11">

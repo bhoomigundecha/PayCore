@@ -10,9 +10,9 @@ function pathFor(status) {
   }
   const steps = ['Authorized', 'Captured', 'Refunded']
   const reached = {
-    AUTHORIZING: -1, AUTHORIZED: 0, CAPTURING: 0, CAPTURED: 1, REFUNDING: 1, REFUNDED: 2,
+    REQUIRES_AUTHENTICATION: -1, AUTHORIZING: -1, AUTHORIZED: 0, CAPTURING: 0, CAPTURED: 1, REFUNDING: 1, REFUNDED: 2,
   }[status] ?? -1
-  return { steps, reached, pendingNext: status.endsWith('ING') }
+  return { steps, reached, pendingNext: status.endsWith('ING') || status === 'REQUIRES_AUTHENTICATION' }
 }
 
 export function PaymentStepper({ status }) {

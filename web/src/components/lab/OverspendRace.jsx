@@ -82,7 +82,7 @@ export function OverspendRace({ index }) {
               transition={{ duration: 0.35 }}
               className={cn(
                 'grid aspect-square place-items-center rounded-lg border font-mono text-[10px] transition-colors duration-300',
-                t === 'ok' && 'border-brand/60 bg-brand/30 text-[#d1fae5] shadow-[0_0_20px_-6px_rgb(52_211_153/0.8)]',
+                t === 'ok' && 'border-brand/60 bg-brand/30 text-[#d1fae5]',
                 t === 'declined' && 'border-decline/40 bg-decline/20 text-[#fecdd3]',
                 t === 'error' && 'border-hold/30 bg-hold/15 text-hold',
                 t === 'pending' && 'border-info/30 bg-info/10 text-info animate-pulse',

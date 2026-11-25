@@ -79,7 +79,7 @@ function CrashSimulator() {
               aria-label={`Crash ${CRASHES[point].label.toLowerCase()}`}
               className={cn(
                 'grid h-9 w-full shrink-0 place-items-center rounded-xl border transition-all md:h-auto md:w-10',
-                crash === point ? 'border-decline/60 bg-decline/15 text-decline shadow-[0_0_24px_-6px_rgb(251_113_133/0.8)]' : 'border-dashed border-line text-faint hover:border-decline/40 hover:text-decline',
+                crash === point ? 'border-decline/60 bg-decline/15 text-decline' : 'border-dashed border-line text-faint hover:border-decline/40 hover:text-decline',
               )}
             >
               <Zap className="size-4" />
@@ -207,7 +207,7 @@ export default function HowItWorks() {
         </div>
       </section>
 
-      <section className="mt-20 flex flex-col items-center rounded-3xl border border-line bg-[radial-gradient(60%_100%_at_50%_0%,rgb(52_211_153/0.12),transparent)] px-6 py-14 text-center">
+      <section className="mt-20 flex flex-col items-center rounded-3xl border border-line bg-surface px-6 py-14 text-center">
         <h2 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">Read the code behind it</h2>
         <p className="mt-3 max-w-xl text-muted">Start with PaymentService.java: the state machine and its recovery path fit in one file, with integration tests for every case above.</p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">

@@ -26,8 +26,9 @@ class RateLimitIntegrationTest {
         String clientIp = "10.0.0." + (1 + (UUID.randomUUID().hashCode() & 0x7f)) + "-" + UUID.randomUUID();
         String unknownAccount = "/accounts/" + UUID.randomUUID();
 
+        // Not signed in, so each request is a 401, but the limiter runs first and still counts them.
         for (int i = 0; i < 3; i++) {
-            mvc.perform(from(clientIp, get(unknownAccount))).andExpect(status().isNotFound());
+            mvc.perform(from(clientIp, get(unknownAccount))).andExpect(status().isUnauthorized());
         }
         mvc.perform(from(clientIp, get(unknownAccount)))
                 .andExpect(status().isTooManyRequests())

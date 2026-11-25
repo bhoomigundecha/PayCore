@@ -3,10 +3,10 @@ import { Link } from 'react-router'
 import { cn } from '../../lib/cn'
 
 const VARIANTS = {
-  primary: 'bg-ink text-canvas hover:bg-white shadow-[0_0_0_1px_rgb(255_255_255/0.1),0_8px_30px_-8px_rgb(52_211_153/0.45)]',
-  secondary: 'glass text-ink hover:bg-white/[0.07] hover:border-line-strong',
+  primary: 'bg-ink text-canvas hover:bg-white',
+  secondary: 'border border-line bg-surface text-ink hover:border-line-strong hover:bg-raised',
   ghost: 'text-muted hover:text-ink hover:bg-white/[0.05]',
-  brand: 'bg-brand text-canvas hover:bg-[#5eead4] shadow-[0_8px_30px_-10px_rgb(52_211_153/0.8)]',
+  brand: 'bg-brand text-canvas hover:bg-[#6ee7b7]',
   danger: 'bg-decline/10 text-decline border border-decline/25 hover:bg-decline/20',
 }
 

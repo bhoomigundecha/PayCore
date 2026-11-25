@@ -98,4 +98,8 @@ public class TopUp {
     public Status getStatus() {
         return status;
     }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
 }

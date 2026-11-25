@@ -8,6 +8,14 @@ public final class IdempotencyKeys {
     private IdempotencyKeys() {
     }
 
+    /**
+     * Validates the key and scopes it to the user, so two users can never collide on (or probe)
+     * each other's keys.
+     */
+    public static String scoped(java.util.UUID userId, String key) {
+        return userId + ":" + validate(key);
+    }
+
     public static String validate(String key) {
         if (key == null || key.isBlank() || key.length() > MAX_LENGTH) {
             throw new InvalidRequestException(HEADER + " must be 1-" + MAX_LENGTH + " characters");

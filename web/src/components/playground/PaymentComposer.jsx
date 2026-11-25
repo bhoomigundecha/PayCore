@@ -1,20 +1,23 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowRight, Hand, Zap } from 'lucide-react'
+import { ArrowRight, Hand, ShieldCheck, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '../../api/client'
 import { useSandbox } from '../../hooks/useSandbox'
-import { feeFor, formatPaise, rupeesToPaise } from '../../lib/money'
+import { feeFor, formatPaise, rupeesToPaise, STEP_UP_THRESHOLD } from '../../lib/money'
 import { Button } from '../ui/Button'
+import { launchFlight } from '../../lib/flight'
+import { ApprovePaymentDialog } from './ApprovePaymentDialog'
 import { Field, MoneyInput, Segmented, Select } from '../ui/Form'
 
 export function PaymentComposer() {
-  const { customers, merchants, rememberPayment, nameOf } = useSandbox()
+  const { customers, merchants, refresh, nameOf } = useSandbox()
   const [chosenCustomer, setCustomerId] = useState('')
   const [chosenMerchant, setMerchantId] = useState('')
   const [rupees, setRupees] = useState('250')
   const [mode, setMode] = useState('capture')
   const [busy, setBusy] = useState(false)
+  const [approving, setApproving] = useState(null) // payment waiting for its one-time code
 
   // Fall back to the first available account when nothing (or a removed account) is selected.
   const customerId = customers.some((c) => c.id === chosenCustomer) ? chosenCustomer : customers[0]?.id ?? ''
@@ -32,14 +35,12 @@ export function PaymentComposer() {
       const payment = await api.createPayment({
         customerAccountId: customerId, merchantAccountId: merchantId, amount, capture: mode === 'capture',
       })
-      rememberPayment(payment.id)
-      if (payment.status === 'FAILED') {
-        toast.error(`Declined: ${nameOf(customerId)} can't afford ${formatPaise(amount)}`)
-      } else {
-        toast.success(payment.status === 'CAPTURED'
-          ? `Paid ${formatPaise(amount)} to ${nameOf(merchantId)}`
-          : `Authorized ${formatPaise(amount)}: money is on hold`)
+      if (payment.status === 'REQUIRES_AUTHENTICATION') {
+        refresh()
+        setApproving(payment)
+        return
       }
+      await finish(payment)
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -47,7 +48,30 @@ export function PaymentComposer() {
     }
   }
 
+  // Plays the payment animation for the final outcome and reports it.
+  const finish = async (payment) => {
+    const kind = payment.status === 'FAILED' ? 'declined' : payment.status === 'CAPTURED' ? 'captured' : 'held'
+    await launchFlight({ from: payment.customerAccountId, to: payment.merchantAccountId, amount: payment.amount, fee: payment.fee, kind })
+    refresh()
+    if (payment.status === 'FAILED') {
+      toast.error(payment.failureReason?.startsWith('authentication')
+        ? 'Payment cancelled: it was not approved'
+        : `Declined: ${nameOf(payment.customerAccountId)} can't afford ${formatPaise(payment.amount)}`)
+    } else {
+      toast.success(payment.status === 'CAPTURED'
+        ? `Paid ${formatPaise(payment.amount)} to ${payment.merchantName}`
+        : `Authorized ${formatPaise(payment.amount)}: money is on hold`)
+    }
+  }
+
+  const onApproved = async (payment) => {
+    setApproving(null)
+    await finish(payment)
+  }
+
   return (
+    <>
+    <ApprovePaymentDialog payment={approving} open={!!approving} onClose={() => { setApproving(null); refresh() }} onApproved={onApproved} />
     <form onSubmit={submit} className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
         <Field label="From">
@@ -97,6 +121,9 @@ export function PaymentComposer() {
                 <span><span className="text-brand">●</span> Merchant gets {formatPaise(amount - fee)}</span>
                 <span><span className="text-violet">●</span> PayCore fee {formatPaise(fee)}</span>
               </div>
+              {amount >= STEP_UP_THRESHOLD && (
+                <p className="mt-2 flex items-center gap-1.5 text-hold"><ShieldCheck className="size-3.5" /> {formatPaise(STEP_UP_THRESHOLD).replace('.00', '')} or more: you&apos;ll approve it with a one-time code</p>
+              )}
             </div>
           </motion.div>
         )}
@@ -107,5 +134,6 @@ export function PaymentComposer() {
       </Button>
       <p className="text-center text-[11px] text-faint">Sent with a fresh Idempotency-Key. Amounts travel as integer paise.</p>
     </form>
+    </>
   )
 }

@@ -10,5 +10,7 @@ public interface TopUpRepository extends JpaRepository<TopUp, UUID> {
 
     Optional<TopUp> findByIdempotencyKey(String idempotencyKey);
 
+    List<TopUp> findTop10ByStatusOrderByUpdatedAtDesc(TopUp.Status status);
+
     List<TopUp> findTop100ByStatusAndUpdatedAtBefore(TopUp.Status status, Instant cutoff);
 }

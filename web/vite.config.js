@@ -10,6 +10,11 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
+      '/auth': API,
+      '/activity': API,
+      '/notifications': API,
+      '/checkout-sessions': API,
+      '/cards': API,
       '/accounts': API,
       '/payments': API,
       '/ledger': API,

@@ -7,5 +7,9 @@ paycore:
     # Tests call RecoveryJob.run() themselves; keep the scheduler out of the way.
     interval: 1h
     stuck-after: 0s
+  step-up:
+    # Existing tests use larger amounts; StepUpIntegrationTest sets its own threshold.
+    threshold: 1000000000000
   rate-limit:
     requests-per-minute: 100000
+    auth-per-minute: 100000
